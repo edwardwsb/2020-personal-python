@@ -4,8 +4,8 @@ import pickle
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-EVENTS = ("PushEvent", "IssueCommentEvent", "IssuesEvent", "PullRequestEvent", )
-pattern = re.compile(r'"type":"(\w+?)".*?actor.*?"login":"(\S+?)".*?repo.*?"name":"(\S+?)"')
+typeS = ("Pushtype", "IssueCommenttype", "Issuestype", "PullRequesttype", )
+pattern = re.compile(r'"type":"(\w+?)".*?actor.*?"login":"(\S+?)".*?name.*?"name":"(\S+?)"')
 
 class Data:
     def __init__(self):
@@ -17,18 +17,17 @@ class Data:
         with open(filename, 'r', encoding='utf-8') as f:
             for line in f:
                 res = pattern.search(line)
-                if res is None or res[1] not in EVENTS:
+                if res is None or res[1] not in typeS:
                     continue
 
-                event, user, repo = res.groups()
-                self.login_type.setdefault(user, {})
-                self.get_tot_ans.setdefault(user, {})
-                self.name_type.setdefault(repo, {})
-                self.get_tot_ans[user].setdefault(repo, {})
-
-                self.login_type[user][event] = self.login_type[user].get(event, 0)+1
-                self.name_type[repo][event] = self.name_type[repo].get(event, 0)+1
-                self.get_tot_ans[user][repo][event] = self.get_tot_ans[user][repo].get(event, 0)+1
+        type, login, name = res.groups()
+        self.login_type.setdefault(login, {})
+        self.get_tot_ans.setdefault(login, {})
+        self.name_type.setdefault(name, {})
+        self.get_tot_ans[login].setdefault(name, {})
+        self.login_type[login][type] = self.login_type[login].get(type, 0)+1
+        self.name_type[name][type] = self.name_type[name].get(type, 0)+1
+        self.get_tot_ans[login][name][type] = self.get_tot_ans[login][name].get(type, 0)+1
 
     def init(self, dir_path: str):
         pool = ThreadPoolExecutor()
@@ -46,9 +45,6 @@ class Data:
             pickle.dump(self.get_tot_ans, f)
 
     def load(self):
-        if not any((os.path.exists(f'{i}.json') for i in range(1, 4))):
-            raise RuntimeError('error: data file not found')
-
         with open('1.json', 'rb') as f:
             self.login_type = pickle.load(f)
         with open('2.json', 'rb') as f:
@@ -62,28 +58,26 @@ class Run:
         self.data = Data()
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('-i', '--init', type=str)
-        self.parser.add_argument('-u', '--user', type=str)
-        self.parser.add_argument('-r', '--repo', type=str)
-        self.parser.add_argument('-e', '--event', type=str)
+        self.parser.add_argument('-u', '--login', type=str)
+        self.parser.add_argument('-r', '--name', type=str)
+        self.parser.add_argument('-e', '--type', type=str)
         print(self.analyse())
 
     def analyse(self):
         args = self.parser.parse_args()
-        event, user, repo = args.event, args.user, args.repo
+        type, login, name = args.type, args.login, args.name
 
         if args.init:
             self.data.init(args.init)
-            return 'init done'
         self.data.load()
 
-        if user and repo:
-            res = self.data.get_tot_ans.get(user, {}).get(repo, {}).get(event, 0)
-        elif user:
-            res = self.data.login_type.get(user, {}).get(event, 0)
+        if login and name:
+            res = self.data.get_tot_ans.get(login, {}).get(name, {}).get(type, 0)
+        elif login:
+            res = self.data.login_type.get(login, {}).get(type, 0)
         else:
-            res = self.data.name_type.get(repo, {}).get(event, 0)
+            res = self.data.name_type.get(name, {}).get(type, 0)
         return res
-
 
 if __name__ == '__main__':
     run = Run()
